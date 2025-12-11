@@ -21,7 +21,7 @@ const init = async () => {
   peerConnection = new RTCPeerConnection(servers)
 
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: false })
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
   } catch (error) {
     console.error("Media permission denied: ", err)
     alert("Allow media permission, Refresh")
