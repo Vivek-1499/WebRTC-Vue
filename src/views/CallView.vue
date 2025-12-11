@@ -26,7 +26,7 @@ const init = async () => {
     console.error("Media permission denied: ", err)
     alert("Allow media permission, Refresh")
   }
-  
+
   if (user1.value) {
     user1.value.srcObject = localStream
   }
@@ -68,7 +68,7 @@ const createAns = async () => {
   await init()
 
   if (!offerSDP.value) return alert("Paste the offer")
-  
+
   await generateIceCandidates()
   const offer = JSON.parse(offerSDP.value)
   await peerConnection.setRemoteDescription(offer)
@@ -81,16 +81,26 @@ const createAns = async () => {
 
 }
 
-const addAnswer =async()=>{
-  if(!answerSDP){
+const addAnswer = async () => {
+  if (!answerSDP) {
     alert("paste the anserSDP")
     return
-  } 
+  }
 
   const ans = JSON.parse(answerSDP.value)
 
-  if(!peerConnection.currentRemoteDescription){
+  if (!peerConnection.currentRemoteDescription) {
     await peerConnection.setRemoteDescription(ans)
+  }
+}
+
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    console.log("text copied")
+  } catch (err) {
+    console.error('Failed to copy: ', err)
+    alert("Failed to copy automatically.")
   }
 }
 </script>
@@ -102,14 +112,20 @@ const addAnswer =async()=>{
   </div>
 
   <div class="sdp offer">
-    <button @click="createOffer">Create Offer</button>
+    <div class="button">
+      <button @click="createOffer">Create Offer</button>
+      <button class="copy-btn" @click="copyToClipboard(offerSDP)">Copy Offer</button>
+    </div>
     <label for="offer"> SDP offer</label>
     <textarea name="offer" id="offer" v-model="offerSDP"
       placeholder="Offer Code will appear here or paste offer if recvieving"></textarea>
   </div>
 
   <div class="sdp answer">
-    <button @click="createAns">Create Answer</button>
+    <div class="button">
+      <button @click="createAns">Create Answer</button>
+      <button class="copy-btn" @click="copyToClipboard(answerSDP)">Copy Answer</button>
+    </div>
     <label for="answer"> SDP answer</label>
     <textarea name="answer" id="answer" v-model='answerSDP'
       placeholder="Answer code will appear here or paste if calling"></textarea>
@@ -122,36 +138,92 @@ const addAnswer =async()=>{
 .video {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  column-gap: 1rem;
+  gap: 1rem;
   width: 90%;
-  margin: auto;
-  margin-top: 2rem;
-
-
+  margin: 2rem auto;
 }
 
 video {
   width: 100%;
-  border: 2px solid black;
-  background-color: rgb(68, 68, 68);
   height: 300px;
+  border: 2px solid #333;
+  background-color: #444;
+  border-radius: 6px;
+  object-fit: cover;
 }
 
+/* SDP container styling */
 .sdp {
+  width: 80%;
+  margin: 1.5rem auto;
   display: flex;
   flex-direction: column;
-  margin: auto;
-  width: 80%;
-  margin-top: 1rem;
+}
+
+.button {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 0.5rem;
 }
 
 button {
-  display: flex;
-  margin: auto;
-  width: 20rem;
-  padding: 0.5rem;
-  justify-content: center;
+  padding: 0.6rem 0.8rem;
   border-radius: 0.5rem;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  background-color: #eee;
+  font-weight: 600;
+  transition: background-color 0.2s;
+}
 
+button:hover {
+  background-color: #ddd;
+}
+
+.copy-btn {
+  background-color: #555d95;
+  color: white;
+  border: none;
+}
+
+.copy-btn:hover {
+  background-color: #424874;
+}
+
+#add-answer {
+  display: block;
+  margin: 2rem auto;
+  width: 200px;
+  padding: 0.7rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+
+textarea {
+  width: 100%;
+  height: 60px;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #bbb;
+  resize: vertical;
+  background: #fafafa;
+  font-family: monospace;
+}
+
+@media (max-width: 768px) {
+  .video {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  video {
+    height: 250px;
+  }
+  button {
+    flex: 1;
+  }
 }
 </style>

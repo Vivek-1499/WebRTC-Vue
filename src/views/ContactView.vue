@@ -47,7 +47,7 @@ const sendEmail = () => {
     <textarea name="textarea" id="textarea" placeholder="Enter Text" v-model="message" required></textarea>
     <div class="button">
 
-      <button type="submit">Sumit</button>
+      <button type="submit">Submit</button>
       <RouterLink to="/call"><button type="button">Call</button></RouterLink>
     </div>
   </form>
