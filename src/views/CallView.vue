@@ -22,7 +22,7 @@ const init = async () => {
 
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-  } catch (error) {
+  } catch (err) {
     console.error("Media permission denied: ", err)
     alert("Allow media permission, Refresh")
   }
@@ -42,48 +42,47 @@ const init = async () => {
     })
     if (user2.value) user2.value.srcObject = remoteStream;
   }
-}
-// onMounted(() => {
-//   init()
-// })
-
-const generateIceCandidates = async () => {
-  peerConnection.onicecandidate = async (e) => {
-    if (e.candidate) {
-      offerSDP.value = JSON.stringify(peerConnection.localDescription)
-    }
+  peerConnection.onconnectionstatechange = () => {
+    console.log("Connection state:", peerConnection.connectionState)
   }
 }
 const createOffer = async () => {
   await init()
-  await generateIceCandidates()
 
   let offer = await peerConnection.createOffer()
   await peerConnection.setLocalDescription(offer)
-  offerSDP.value = JSON.stringify(offer)
 
+  offerSDP.value = "Gathering network candidates... Please wait..."
+  peerConnection.onicecandidate = async (e) => {
+    if (!e.candidate) {
+      offerSDP.value = JSON.stringify(peerConnection.localDescription)
+    }
+  }
 }
 
 const createAns = async () => {
   await init()
 
-  if (!offerSDP.value) return alert("Paste the offer")
+  if (!offerSDP.value) return alert("Paste the offer first")
 
-  await generateIceCandidates()
   const offer = JSON.parse(offerSDP.value)
   await peerConnection.setRemoteDescription(offer)
 
   const answer = await peerConnection.createAnswer()
   await peerConnection.setLocalDescription(answer)
 
+  answerSDP.value = "Gathering network candidates... Please wait..."
 
-  answerSDP.value = JSON.stringify(peerConnection.localDescription)
-
+  peerConnection.onicecandidate = async (e) => {
+    if (!e.candidate) {
+      answerSDP.value = JSON.stringify(peerConnection.localDescription)
+    }
+  }
 }
 
 const addAnswer = async () => {
-  if (!answerSDP) {
-    alert("paste the anserSDP")
+  if (!answerSDP.value) {
+    alert("Paste the answer SDP first")
     return
   }
 
@@ -95,12 +94,11 @@ const addAnswer = async () => {
 }
 
 const copyToClipboard = async (text) => {
+  if (!text || text.includes("Gathering")) return alert("Wait for code to generate")
   try {
     await navigator.clipboard.writeText(text)
-    console.log("text copied")
   } catch (err) {
-    console.error('Failed to copy: ', err)
-    alert("Failed to copy automatically.")
+    alert("Failed to copy.")
   }
 }
 </script>
@@ -124,7 +122,7 @@ const copyToClipboard = async (text) => {
   <div class="sdp answer">
     <div class="button">
       <button @click="createAns">Create Answer</button>
-      <button class="copy-btn" @click="copyToClipboard(answerSDP)">Copy Answer</button>
+        <button class="copy-btn" @click="copyToClipboard(answerSDP)">Copy Answer</button>
     </div>
     <label for="answer"> SDP answer</label>
     <textarea name="answer" id="answer" v-model='answerSDP'
@@ -222,6 +220,7 @@ textarea {
   video {
     height: 250px;
   }
+
   button {
     flex: 1;
   }
