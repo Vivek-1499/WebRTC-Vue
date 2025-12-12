@@ -1,11 +1,14 @@
 <script setup>
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
 const user1 = ref(null)
 const user2 = ref(null)
 
 const offerSDP = ref('');
 const answerSDP = ref('');
+
+const Mic = ref(false)
+const Camera = ref(false)
 
 let localStream
 let remoteStream
@@ -17,19 +20,27 @@ const servers = {
   }]
 }
 
-const init = async () => {
-  peerConnection = new RTCPeerConnection(servers)
-
+onMounted(async () => {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-  } catch (err) {
-    console.error("Media permission denied: ", err)
-    alert("Allow media permission, Refresh")
-  }
 
-  if (user1.value) {
-    user1.value.srcObject = localStream
+    localStream.getAudioTracks()[0].enabled = false
+    localStream.getVideoTracks()[0].enabled = false
+
+    Mic.value = false
+    Camera.value = false
+
+    if (user1.value) {
+      user1.value.srcObject = localStream
+    }
+
+  } catch (error) {
+    console.log(error)
   }
+})
+
+const init = async () => {
+  peerConnection = new RTCPeerConnection(servers)
 
   //able to send to other user
   localStream.getTracks().forEach((track) => {
@@ -61,10 +72,10 @@ const createOffer = async () => {
 }
 
 const createAns = async () => {
-  await init()
 
   if (!offerSDP.value) return alert("Paste the offer first")
 
+  await init()
   const offer = JSON.parse(offerSDP.value)
   await peerConnection.setRemoteDescription(offer)
 
@@ -101,12 +112,48 @@ const copyToClipboard = async (text) => {
     alert("Failed to copy.")
   }
 }
+
+const toggleCamera = () => {
+  if (!localStream) return
+  const videoTrack = localStream.getVideoTracks()[0];
+  if (!videoTrack) return;
+
+  videoTrack.enabled = !videoTrack.enabled
+  Camera.value = !Camera.value
+}
+
+const toggleMic = () => {
+  if (!localStream) return;
+  const audioTrack = localStream.getAudioTracks()[0];
+  if (!audioTrack) return;
+
+  audioTrack.enabled = !audioTrack.enabled;
+  Mic.value = audioTrack.enabled;
+}
 </script>
 
 <template>
-  <div class="video">
-    <video class="video-player" ref="user1" autoplay playsinline></video>
-    <video class="video-player" ref="user2" autoplay playsinline></video>
+  <div class="video-container">
+    <div class="video-wrapper">
+      <div class="video-label">You</div>
+      <video class="video-player" ref="user1" autoplay playsinline muted></video>
+
+      <div class="controls">
+        <button @click="toggleMic" :class="{ 'btn-active': Mic, 'btn-off': !Mic }">
+          <i :class="Mic ? 'fa-solid fa-microphone' : 'fa-solid fa-microphone-slash'"></i>
+        </button>
+
+        <button @click="toggleCamera" :class="{ 'btn-active': Camera, 'btn-off': !Camera }">
+          <i :class="Camera ? 'fa-solid fa-video' : 'fa-solid fa-video-slash'"></i>
+        </button>
+      </div>
+
+    </div>
+
+    <div class="video-wrapper">
+      <div class="video-label">Remote</div>
+      <video class="video-player" ref="user2" autoplay playsinline></video>
+    </div>
   </div>
 
   <div class="sdp offer">
@@ -122,35 +169,87 @@ const copyToClipboard = async (text) => {
   <div class="sdp answer">
     <div class="button">
       <button @click="createAns">Create Answer</button>
-        <button class="copy-btn" @click="copyToClipboard(answerSDP)">Copy Answer</button>
+      <button class="copy-btn" @click="copyToClipboard(answerSDP)">Copy Answer</button>
     </div>
     <label for="answer"> SDP answer</label>
     <textarea name="answer" id="answer" v-model='answerSDP'
       placeholder="Answer code will appear here or paste if calling"></textarea>
   </div>
 
-  <button id="add-answer" @click="addAnswer">Add answer</button>
+  <button id="add-answer" @click="addAnswer">Call</button>
 </template>
 
 <style scoped>
-.video {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.video-container {
+  display: flex;
+  justify-content: center;
   gap: 1rem;
-  width: 90%;
-  margin: 2rem auto;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.video-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 700px;
 }
 
 video {
   width: 100%;
-  height: 300px;
-  border: 2px solid #333;
-  background-color: #444;
-  border-radius: 6px;
+  height: 400px;
+  background-color: black;
+  border-radius: 0.5rem;
   object-fit: cover;
 }
 
-/* SDP container styling */
+.video-label {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: white;
+  background-color: #1a1a1a60;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.1rem;
+  font-size: small;
+  z-index: 10;
+}
+
+.controls {
+  position: absolute;
+  bottom: 20px;
+  display: flex;
+  left: 50%;
+  transform: translateX(-50%);
+  gap: 0.5rem;
+  z-index: 10;
+  border-radius: 20px;
+}
+
+.controls button {
+  border-radius: 50%;
+  height: 3rem;
+  width: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  transition: all 0.5s;
+}
+
+.btn-active {
+  background-color: #cdcdcd;
+  color: #333;
+}
+
+.btn-off {
+  background-color: #ff4757;
+  color: white;
+}
+
+.controls button:hover {
+  color: black
+}
+
 .sdp {
   width: 80%;
   margin: 1.5rem auto;
@@ -199,7 +298,6 @@ button:hover {
   cursor: pointer;
 }
 
-
 textarea {
   width: 100%;
   height: 60px;
@@ -223,6 +321,11 @@ textarea {
 
   button {
     flex: 1;
+  }
+
+  .controls button {
+    height: 2.3rem;
+    width: 2.3rem;
   }
 }
 </style>
