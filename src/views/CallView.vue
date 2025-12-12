@@ -9,9 +9,11 @@ const answerSDP = ref('');
 
 const Mic = ref(false)
 const Camera = ref(false)
+const ScreenShare = ref(false)
 
 let localStream
 let remoteStream
+let onScreenMedia
 let peerConnection
 
 const servers = {
@@ -57,6 +59,58 @@ const init = async () => {
     console.log("Connection state:", peerConnection.connectionState)
   }
 }
+const stopScreenShare = () => {
+  if (!onScreenMedia) return;
+
+  onScreenMedia.stop();
+  ScreenShare.value = false;
+
+  if (user1.value) {
+    user1.value.srcObject = localStream;
+  }
+
+  if (peerConnection) {
+    const videoSender = peerConnection.getSenders().find(s => s.track.kind === 'video');
+    const cameraTrack = localStream.getVideoTracks()[0];
+
+    if (videoSender && cameraTrack) {
+      videoSender.replaceTrack(cameraTrack);
+    }
+  }
+  onScreenMedia = null;
+}
+
+const toggleScreenShare = async () => {
+  if (ScreenShare.value) {
+    stopScreenShare();
+    return;
+  }
+
+  try {
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const screenTrack = screenStream.getVideoTracks()[0];
+    onScreenMedia = screenTrack;
+
+    screenTrack.onended = () => {
+      if (ScreenShare.value) stopScreenShare();
+    }
+
+    if (user1.value) {
+      user1.value.srcObject = screenStream;
+    }
+
+    if (peerConnection) {
+      const videoSender = peerConnection.getSenders().find(s => s.track.kind === "video");
+      if (videoSender) {
+        videoSender.replaceTrack(screenTrack);
+      }
+    }
+    ScreenShare.value = true;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 const createOffer = async () => {
   await init()
 
@@ -145,6 +199,10 @@ const toggleMic = () => {
 
         <button @click="toggleCamera" :class="{ 'btn-active': Camera, 'btn-off': !Camera }">
           <i :class="Camera ? 'fa-solid fa-video' : 'fa-solid fa-video-slash'"></i>
+        </button>
+
+        <button @click="toggleScreenShare" :class="{ 'btn-active': ScreenShare, 'btn-off': !ScreenShare }">
+          <i class="fa-solid fa-display"></i>
         </button>
       </div>
 
