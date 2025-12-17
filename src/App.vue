@@ -1,11 +1,18 @@
 <script setup>
-import { RouterView } from 'vue-router';
+import { RouterView, useRoute } from 'vue-router';
 import Navbar from '../components/Navbar.vue';
+import { computed } from 'vue';
+
+const route = useRoute()
+
+const showGlobalNav = computed(()=>{
+  return !route.meta.hideNavBar
+})
 
 </script>
 
 <template>
-  <Navbar/>
+  <Navbar v-if="showGlobalNav"/>
   <RouterView/>
   
 </template>

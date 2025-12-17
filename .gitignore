@@ -32,6 +32,6 @@ coverage
 /cypress/videos/
 /cypress/screenshots/
 
-# Vitest
 __screenshots__/
 .env
+/server/.env

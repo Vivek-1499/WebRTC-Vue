@@ -159,7 +159,7 @@ const addAnswer = async () => {
 }
 
 const copyToClipboard = async (text) => {
-  if (!text || text.includes("Gathering")) return alert("Wait for code to generate")
+  if (!text || text.includes("Gathering")) return alert("Wait sometime")
   try {
     await navigator.clipboard.writeText(text)
   } catch (err) {
