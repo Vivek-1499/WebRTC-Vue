@@ -12,7 +12,14 @@ const PORT = 3000;
 
 const TOKEN_EXPIRATION_TIME = 3600
 
-app.use(cors());
+
+app.use(cors({
+  origin: [
+    "https://webrtc-vue-ecru.vercel.app/"
+  ],
+  methods: ["GET", "POST"],
+  credentials: true
+}));
 
 app.get("/getToken", (req, res) => {
   console.log("Incoming Request Query:", req.query);
