@@ -11,7 +11,7 @@ const isJoined = ref(false);
 const isJoining = ref(false);
 
 const APP_ID = import.meta.env.VITE_AGORA_APP_ID;
-const backend = 'http://localhost:3000/getToken';
+const backend = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000/getToken';
 const roomId = ref("");
 const channelName = computed(() => route.params.roomId || roomId.value);
 
