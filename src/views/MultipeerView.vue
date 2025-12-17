@@ -3,7 +3,6 @@ import { computed, onUnmounted, ref, onMounted } from 'vue';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import axios from 'axios';
 import { useRoute, useRouter } from "vue-router";
-import { RTM } from "agora-rtm-sdk"
 import { nextTick } from 'vue';
 
 const route = useRoute();
