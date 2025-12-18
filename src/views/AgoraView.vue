@@ -27,6 +27,10 @@ let localScreenTrack = null;
 
 const remoteUsers = ref({});
 
+const isRecording = ref(false);
+let mediaRecorder = null;
+let recordedBlobs = [];
+
 const initializeClient = () => {
   client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
   client.on('user-published', async (user, mediaType) => {
@@ -35,7 +39,7 @@ const initializeClient = () => {
       remoteUsers.value = { ...remoteUsers.value, [user.uid]: user };
     }
     if (mediaType === "video") {
-      await nextTick(); 
+      await nextTick();
 
       user.videoTrack.play(`remote-user-${user.uid}`);
     } else if (mediaType === 'audio') {
@@ -103,29 +107,37 @@ const toggleScreenShare = async () => {
 };
 
 const joinChannel = async () => {
-  if (!channelName.value) return alert("Enter channel name");
   isJoining.value = true;
+
+  if (!roomId.value && !route.params.roomId) {
+    roomId.value = `room-${Math.random().toString(36).substring(2, 9)}`;
+  }
 
   if (!route.params.roomId) {
     await router.push({ name: 'room', params: { roomId: channelName.value } });
   }
 
   if (!client) initializeClient();
-  
+
   try {
     const { data } = await axios.get(backend, {
       params: { channel: channelName.value, uid: uid.value }
     });
+    console.log("Token received:", data.token);
+
+    if (!data.token) {
+      throw new Error("Backend did not return a token. Check your server response.");
+    }
 
     await client.join(APP_ID, channelName.value, data.token, uid.value);
 
     localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
     localVideoTrack = await AgoraRTC.createCameraVideoTrack();
-    
+
 
     await client.publish([localAudioTrack, localVideoTrack]);
-    
-    isJoined.value = true; 
+
+    isJoined.value = true;
     Mic.value = true;
     Camera.value = true;
 
@@ -134,13 +146,81 @@ const joinChannel = async () => {
     localVideoTrack.play('local-player');
   } catch (error) {
     console.error(error);
-    if (error.code === "PERMISSION_DENIED" || error.name === "NotAllowedError") {
-      alert("Microphone/Camera permission denied. Please allow access in browser settings.");
-    } else {
-      alert("Failed to join: " + error.message);
-    }
+    alert("Failed to join: " + error.message);
   } finally {
     isJoining.value = false;
+  }
+};
+
+const startRecording = async () => {
+  recordedBlobs = [];
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: {
+        displaySurface: "browser",
+        frameRate: { ideal: 30, max: 60 },
+        cursor: "always" 
+      },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        systemAudio: "include", 
+      },
+      preferCurrentTab: true,
+      selfBrowserSurface: "include"
+    });
+
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+      console.warn("No audio track captured. Ensure 'Share tab audio' is checked.");
+    }
+
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') 
+                     ? 'video/webm;codecs=vp8,opus' 
+                     : 'video/webm';
+                     
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        recordedBlobs.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedBlobs, { type: 'video/webm' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Meeting-Recording-${Date.now()}.webm`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      stream.getTracks().forEach(track => track.stop());
+    };
+
+    mediaRecorder.start(1000); 
+    isRecording.value = true;
+
+    stream.getVideoTracks()[0].onended = () => stopRecording();
+
+  } catch (error) {
+    console.error("Recording Start Error:", error);
+    alert("Could not start recording. Did you cancel the permission?");
+  }
+};
+const stopRecording = () => {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  isRecording.value = false;
+};
+
+const toggleRecording = () => {
+  if (isRecording.value) {
+    stopRecording();
+  } else {
+    startRecording();
   }
 };
 
@@ -166,6 +246,8 @@ const leaveChannel = async () => {
     Camera.value = false;
     ScreenShare.value = false;
     remoteUsers.value = {};
+
+    router.push({ name: 'call' });
   }
 };
 
@@ -210,6 +292,10 @@ onUnmounted(() => {
 
           <button @click="toggleScreenShare" :class="{ 'btn-active': ScreenShare, 'btn-off': !ScreenShare }">
             <i class="fa-solid fa-display"></i>
+          </button>
+
+          <button @click="toggleRecording" :class="['record-btn', isRecording ? 'btn-recording-active' : 'btn-off']">
+            <i :class="isRecording ? 'fa-solid fa-circle-stop' : 'fa-solid fa-circle-dot'"></i>
           </button>
 
           <button @click="leaveChannel" class="leave-btn">
@@ -358,6 +444,26 @@ button:disabled {
 
 .controls button:hover {
   color: black
+}
+
+.btn-recording-active {
+  background-color: #ff4757;
+  color: white;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 @media (max-width: 768px) {

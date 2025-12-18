@@ -15,7 +15,8 @@ const TOKEN_EXPIRATION_TIME = 3600
 
 app.use(cors({
   origin: [
-    "https://webrtc-vue-ecru.vercel.app/"
+    "https://webrtc-vue-ecru.vercel.app/",
+    "http://localhost:5173"
   ],
   methods: ["GET", "POST"],
   credentials: true
