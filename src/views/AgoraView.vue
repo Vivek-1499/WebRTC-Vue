@@ -33,7 +33,7 @@ let recordedBlobs = [];
 
 const initializeClient = () => {
   client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-  client.on('user-published', async (user, mediaType) => {
+  client.on('user-published', async (user, mediaType) => { //fires when remote user pulishes the track audio/video
     await client.subscribe(user, mediaType);
     if (!remoteUsers.value[user.uid]) {
       remoteUsers.value = { ...remoteUsers.value, [user.uid]: user };
@@ -112,7 +112,6 @@ const joinChannel = async () => {
   if (!roomId.value && !route.params.roomId) {
     roomId.value = `room-${Math.random().toString(36).substring(2, 9)}`;
   }
-
   if (!route.params.roomId) {
     await router.push({ name: 'room', params: { roomId: channelName.value } });
   }
@@ -123,35 +122,34 @@ const joinChannel = async () => {
     const { data } = await axios.get(backend, {
       params: { channel: channelName.value, uid: uid.value }
     });
-    console.log("Token received:", data.token);
-
-    if (!data.token) {
-      throw new Error("Backend did not return a token. Check your server response.");
-    }
-
-    await client.join(APP_ID, channelName.value, data.token, uid.value);
 
     localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
     localVideoTrack = await AgoraRTC.createCameraVideoTrack();
 
+    await localAudioTrack.setEnabled(false);
+    await localVideoTrack.setEnabled(false);
+    Mic.value = false;
+    Camera.value = false;
+
+    await client.join(APP_ID, channelName.value, data.token, uid.value);
+
+    await localAudioTrack.setEnabled(true);
+    await localVideoTrack.setEnabled(true);
 
     await client.publish([localAudioTrack, localVideoTrack]);
 
+    await localAudioTrack.setEnabled(false);
+    await localVideoTrack.setEnabled(false);
+
     isJoined.value = true;
-    Mic.value = true;
-    Camera.value = true;
 
-    await nextTick();
-
-    localVideoTrack.play('local-player');
   } catch (error) {
-    console.error(error);
+    console.error("Join Error:", error);
     alert("Failed to join: " + error.message);
   } finally {
     isJoining.value = false;
   }
 };
-
 const startRecording = async () => {
   recordedBlobs = [];
   try {
@@ -159,12 +157,12 @@ const startRecording = async () => {
       video: {
         displaySurface: "browser",
         frameRate: { ideal: 30, max: 60 },
-        cursor: "always" 
+        cursor: "always"
       },
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
-        systemAudio: "include", 
+        systemAudio: "include",
       },
       preferCurrentTab: true,
       selfBrowserSurface: "include"
@@ -175,10 +173,10 @@ const startRecording = async () => {
       console.warn("No audio track captured. Ensure 'Share tab audio' is checked.");
     }
 
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') 
-                     ? 'video/webm;codecs=vp8,opus' 
-                     : 'video/webm';
-                     
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+      ? 'video/webm;codecs=vp8,opus'
+      : 'video/webm';
+
     mediaRecorder = new MediaRecorder(stream, { mimeType });
 
     mediaRecorder.ondataavailable = (event) => {
@@ -195,11 +193,11 @@ const startRecording = async () => {
       a.download = `Meeting-Recording-${Date.now()}.webm`;
       a.click();
       window.URL.revokeObjectURL(url);
-      
+
       stream.getTracks().forEach(track => track.stop());
     };
 
-    mediaRecorder.start(1000); 
+    mediaRecorder.start(1000);
     isRecording.value = true;
 
     stream.getVideoTracks()[0].onended = () => stopRecording();
@@ -249,6 +247,7 @@ const leaveChannel = async () => {
 
     router.push({ name: 'call' });
   }
+  roomId.value = ""
 };
 
 onMounted(() => {
@@ -266,9 +265,9 @@ onUnmounted(() => {
 <template>
   <div class="container">
     <div v-if="!isJoined" id="join-room-container">
-      <h2>Join Room</h2>
+      <h2>Join Meeting</h2>
       <div class="text-field">
-        <label for="room-id">Enter Room Id</label>
+        <label for="room-id">Room ID</label>
         <input type="text" id="room-id" v-model="roomId" placeholder="e.g. 1234" :disabled="isJoining">
       </div>
       <button @click="joinChannel" :disabled="isJoining">
@@ -279,25 +278,26 @@ onUnmounted(() => {
     <div v-else id="video-container">
       <div class="video-wrapper">
         <div class="video-label">You ({{ uid }})</div>
-        <div class="video-player" id="local-player"></div>
+
+        <div class="video-player" id="local-player">
+          <div v-if="!Camera" class="camera-off-placeholder">
+            <div class="avatar-circle"><i class="fa-solid fa-user"></i></div>
+          </div>
+        </div>
 
         <div class="controls">
-          <button @click="toggleMic" :class="{ 'btn-active': Mic, 'btn-off': !Mic }">
+          <button @click="toggleMic" :class="Mic ? 'btn-active' : 'btn-off'">
             <i :class="Mic ? 'fa-solid fa-microphone' : 'fa-solid fa-microphone-slash'"></i>
           </button>
-
-          <button @click="toggleCamera" :class="{ 'btn-active': Camera, 'btn-off': !Camera }">
+          <button @click="toggleCamera" :class="Camera ? 'btn-active' : 'btn-off'">
             <i :class="Camera ? 'fa-solid fa-video' : 'fa-solid fa-video-slash'"></i>
           </button>
-
-          <button @click="toggleScreenShare" :class="{ 'btn-active': ScreenShare, 'btn-off': !ScreenShare }">
+          <button @click="toggleScreenShare" :class="ScreenShare ? 'btn-active' : 'btn-off'">
             <i class="fa-solid fa-display"></i>
           </button>
-
           <button @click="toggleRecording" :class="['record-btn', isRecording ? 'btn-recording-active' : 'btn-off']">
             <i :class="isRecording ? 'fa-solid fa-circle-stop' : 'fa-solid fa-circle-dot'"></i>
           </button>
-
           <button @click="leaveChannel" class="leave-btn">
             <i class="fa-solid fa-phone-slash"></i>
           </button>
@@ -306,7 +306,13 @@ onUnmounted(() => {
 
       <div v-for="(user, remoteUid) in remoteUsers" :key="remoteUid" class="video-wrapper">
         <div class="video-label">User {{ remoteUid }}</div>
-        <div class="video-player" :id="`remote-user-${remoteUid}`"></div>
+        <div class="video-player" :id="`remote-user-${remoteUid}`">
+          <div v-if="!user.hasVideo" class="camera-off-placeholder">
+            <div class="avatar-circle">
+              <i class="fa-solid fa-user"></i>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -452,6 +458,22 @@ button:disabled {
   animation: pulse 1.5s infinite;
 }
 
+#join-room-container button {
+  padding: 0.6rem 1.5rem;
+  border-radius: 0.5rem;
+  background-color: #424874;
+  color: white;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s ease;
+}
+
+#join-room-container button:hover {
+  background-color: #555d95;
+}
+
 @keyframes pulse {
   0% {
     transform: scale(1);
@@ -471,5 +493,27 @@ button:disabled {
     height: 2.3rem;
     width: 2.3rem;
   }
+}
+
+.camera-off-placeholder {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  background: #1a1a1a;
+  color: #888;
+}
+
+.avatar-circle {
+  width: 80px;
+  height: 80px;
+  background: #333;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2.5rem;
+  margin-bottom: 10px;
 }
 </style>
